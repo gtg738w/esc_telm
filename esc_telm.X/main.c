@@ -49,35 +49,32 @@ int main(void) {
     
 }
 
-unsigned char checksum(unsigned char data[7]){
+unsigned char checksum(unsigned char data_in[7]){
     unsigned int i;
     unsigned char sum=0;
     for (i=0; i<7; i++){
-        sum = sum + data[i];
+        sum = sum + data_in[i];
     }
     sum = 0xFF - sum;
+    U1TXREG = sum;
     return sum;   
 }
 
 void __attribute__((__interrupt__)) _U1RXInterrupt(void) {
-    
+
     unsigned char rxChar;
     unsigned char rxChar2;
-    unsigned char data[7];
+    unsigned char data[8];
     unsigned int i;
-    
+    unsigned int check;
+
     U1STAbits.OERR = 0;
     IEC0bits.U1RXIE = 0;
     rxChar = U1RXREG;
     if (rxChar == 0x7E){
         //Start of Frame...
-        __delay_us(200);        if (U1STAbits.URXDA == 1){
-            //PORTBbits.RB15 = 1;
-            //__delay_us(1);
-            //PORTBbits.RB15 = 0;
-        }
+        __delay_us(200);        
         rxChar2 = U1RXREG;
-        //U1TXREG = rxChar2;
         __delay_us(200);
         if (rxChar2 == 0x6A){
             RPINR18bits.U1RXR = 0b0;
@@ -89,39 +86,24 @@ void __attribute__((__interrupt__)) _U1RXInterrupt(void) {
             
             data[0] = 0x10;
             data[1] = 0x00;
-            data[2] = 0x01;
-            
-            data[3] = 0xFF;
-            data[4] = 0xFE;
-            data[5] = 0xFF;
-            data[6] = 0xFF;
-            
+            data[2] = 0x0C;
+            data[3] = 0x00;
+            data[4] = 0x0A;
+            data[5] = 0x00;
+            data[6] = 0x00;
+            check = data[0] + data[1] + data[2] + data[3] + data[4] + data[5] + data[6];
+            check = 0xFF - (check % 255);
+            data[7] = check;
             __delay_ms(4);
-            
-            for (i=0; i<7; i++){
+
+            for (i=0; i<8; i++){
                 U1TXREG = data[i];
                 __delay_us(200);
+                
             }
-            U1TXREG = checksum(data);
-            /*
             
-            U1TXREG = 0x10;
-            __delay_us(200);
-            U1TXREG = 0x00;
-            __delay_us(200);
-            U1TXREG = 0x01;
-            __delay_us(200);
-            U1TXREG = 0xFF;
-            __delay_us(200);
-            U1TXREG = 0xFE;
-            __delay_us(200);
-            U1TXREG = 0xFF;
-            __delay_us(200);
-            U1TXREG = 0xFF;
-            __delay_us(200);
-            U1TXREG = 0xEF;
-            __delay_us(200);
-             */
+
+
             RPINR18bits.U1RXR = 0b0100110;
             RPOR2bits.RP38R = 0b000000;
             TRISBbits.TRISB6 = 1;
