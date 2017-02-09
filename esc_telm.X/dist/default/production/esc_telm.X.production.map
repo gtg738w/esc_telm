@@ -50,6 +50,8 @@ c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.
                               c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(crt0_extendedep.o) (__data_init_extended)
 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(crt_start_mode_normalep.Leo)
                               (__crt_start_mode_normal)
+c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(delay32ep.Leo)
+                              build/default/production/_ext/1541060452/main.o (___delay32)
 
 
 xc16-ld 1.30 (A)
@@ -59,15 +61,17 @@ Program Memory  [Origin = 0x200, Length = 0x2a980]
 section                    address   length (PC units)   length (bytes) (dec)
 -------                    -------   -----------------   --------------------
 .text                        0x200               0x100           0x180  (384)
-.text                        0x300                 0xc            0x12  (18)
+.text                        0x300               0x164           0x216  (534)
+.init.delay32                0x464                0x1c            0x2a  (42)
 
-                 Total program memory used (bytes):          0x192  (402) <1%
+                 Total program memory used (bytes):          0x3c0  (960) <1%
 
 
 Ivt Memory  [Origin = 0x4, Length = 0x1fc]
 
 section                    address   length (PC units)   length (bytes) (dec)
 -------                    -------   -----------------   --------------------
+.ivt._U1RXInterrupt           0x2a                 0x2             0x3  (3)
 
 
 Data Memory  [Origin = 0x1000, Length = 0x4000]
@@ -95,16 +99,24 @@ External Symbols in Program Memory (by address):
                   0x000248                  __data_init
                   0x000248                  __data_init_extended
                   0x0002fa                  __DefaultInterrupt
-                  0x000300                  _main
+                  0x000300                  _configUART
+                  0x000338                  _main
+                  0x000346                  _checksum
+                  0x000374                  __U1RXInterrupt
+                  0x000464                  ___delay32
 
 External Symbols in Program Memory (by name):
 
                   0x0002fa                  __DefaultInterrupt
+                  0x000374                  __U1RXInterrupt
+                  0x000464                  ___delay32
                   0x000248                  __data_init
                   0x000248                  __data_init_extended
                   0x00023c                  __psv_init
                   0x000200                  __resetPRI
-                  0x000300                  _main
+                  0x000346                  _checksum
+                  0x000300                  _configUART
+                  0x000338                  _main
 
 Memory Configuration
 
@@ -234,22 +246,26 @@ __FALTREG
 .comment
  *(.comment)
 
-.debug_info       0x000000        0x160
+.debug_info       0x000000        0xec8
  *(.debug_info)
- .debug_info      0x000000        0x160 build/default/production/_ext/1541060452/main.o
+ .debug_info      0x000000        0xec8 build/default/production/_ext/1541060452/main.o
  *(.gnu.linkonce.wi.*)
 
-.debug_abbrev     0x000000         0x4e
+.debug_abbrev     0x000000        0x136
  *(.debug_abbrev)
- .debug_abbrev    0x000000         0x4e build/default/production/_ext/1541060452/main.o
+ .debug_abbrev    0x000000        0x136 build/default/production/_ext/1541060452/main.o
 
-.debug_line       0x000000         0x61
+.debug_line       0x000000        0x10a
  *(.debug_line)
- .debug_line      0x000000         0x61 build/default/production/_ext/1541060452/main.o
+ .debug_line      0x000000        0x10a build/default/production/_ext/1541060452/main.o
 
-.debug_frame      0x000000         0x30
+.debug_frame      0x000000         0xac
  *(.debug_frame)
- .debug_frame     0x000000         0x30 build/default/production/_ext/1541060452/main.o
+ .debug_frame     0x000000         0xac build/default/production/_ext/1541060452/main.o
+
+.debug_str        0x000000         0x51
+ *(.debug_str)
+ .debug_str       0x000000         0x51 build/default/production/_ext/1541060452/main.o
 
 .debug_loc
  *(.debug_loc)
@@ -258,10 +274,10 @@ __FALTREG
  *(.debug_macinfo)
 
 .debug_pubnames
-                  0x000000         0x1b
+                  0x000000         0x4a
  *(.debug_pubnames)
  .debug_pubnames
-                  0x000000         0x1b build/default/production/_ext/1541060452/main.o
+                  0x000000         0x4a build/default/production/_ext/1541060452/main.o
 
 .debug_ranges
  *(.debug_ranges)
@@ -1589,19 +1605,33 @@ OUTPUT(dist/default/production/esc_telm.X.production.elf elf32-pic30)
 LOAD default_isr
 
 .debug_pubtypes
-                  0x000018         0x12
+                  0x000018        0x10c
  .debug_pubtypes
-                  0x000018         0x12 build/default/production/_ext/1541060452/main.o
+                  0x000018        0x10c build/default/production/_ext/1541060452/main.o
 
 __c30_signature
-                  0x00002a         0x12
+                  0x000124         0x18
  __c30_signature
-                  0x00002a          0x6 build/default/production/_ext/1541060452/main.o
+                  0x000124          0x6 build/default/production/_ext/1541060452/main.o
  __c30_signature
-                  0x000030          0x6 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(crt0_extendedep.o)
+                  0x00012a          0x6 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(crt0_extendedep.o)
  __c30_signature
-                  0x000036          0x6 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(data_init_extended.o)
+                  0x000130          0x6 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(data_init_extended.o)
+ __c30_signature
+                  0x000136          0x6 c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(delay32ep.Leo)
 
-.text             0x000300          0xc
- .text            0x000300          0xc build/default/production/_ext/1541060452/main.o
-                  0x000300                  _main
+.ivt._U1RXInterrupt
+                  0x00002a          0x2
+ .ivt._U1RXInterrupt
+                  0x00002a          0x2 build/default/production/_ext/1541060452/main.o
+
+.text             0x000300        0x164
+ .text            0x000300        0x164 build/default/production/_ext/1541060452/main.o
+                  0x000300                  _configUART
+                  0x000338                  _main
+                  0x000346                  _checksum
+                  0x000374                  __U1RXInterrupt
+
+.init.delay32     0x000464         0x1c
+ .init.delay32    0x000464         0x1c c:/program files (x86)/microchip/xc16/v1.30/bin/bin/../../lib\liblega-pic30-elf.a(delay32ep.Leo)
+                  0x000464                  ___delay32
