@@ -17,6 +17,12 @@ union data_int{
     unsigned char val_array[4];
 };
 
+struct data_array{
+    unsigned char data[8];
+};
+
+unsigned int field = 0;
+unsigned char data_ret[8];
 /*
  * 
  */
@@ -64,6 +70,19 @@ void configADC(void){
     AD1CON1bits.ADON = 1;   // turn on ADC module    
 }
 
+void configIC(void){
+    IFS0bits.IC1IF = 0;         // Clear the IC1 interrupt status flag
+    IEC0bits.IC1IE = 1;         // Enable IC1 interrupts
+    IPC0bits.IC1IP = 1;         // Set module interrupt priority as 1
+    
+    IC1CON1bits.ICTSEL = 0b111; // use Fp for clock
+    IC1CON1bits.ICM = 0b001;    // capture every edge
+    
+    IC1CON2bits.IC32 = 0;       // 16bit timer mode
+}
+
+
+
 int main(void) {
     TRISBbits.TRISB15 = 0;
     configADC();
@@ -101,10 +120,32 @@ unsigned char checksum(unsigned char data_in[8]){
     return out;   
 }
 
-void sendData(){
-    unsigned char data[8];
-    unsigned int i;
+struct data_array cels1(){
     union data_int data_out;
+    struct data_array data_array_struct;
+    unsigned long cell1, cell2;
+    
+    cell1 = readADC(0);
+    cell2 = readADC(1);
+    
+    data_out.val = (cell2<<20) | (cell1<<8) | (2L<<4);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x00;
+    data_array_struct.data[2] = 0x03;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+void sendData(){
+    unsigned int i;
+    struct data_array data_struct;
+    
     
     RPINR18bits.U1RXR = 0b0;
     TRISBbits.TRISB6 = 0;
@@ -112,22 +153,24 @@ void sendData(){
     PORTBbits.RB15 = 1;
     __delay_us(2);
     PORTBbits.RB15 = 0;
+    
+    switch (field){
+        case 0:         // cels1
+            data_struct = cels1();
+            break;
+        case 1:
+            break;
+        case 2:
+            break;
+            
+    }
 
     //data_out.val = (5L*readADC(0)*2550L)>>12;
-    data_out.val = (2100L<<20) | (1850L<<8) | (2L<<4);
 
-    data[0] = 0x10;
-    data[1] = 0x00;
-    data[2] = 0x03;
-    data[3] = data_out.val_array[0];
-    data[4] = data_out.val_array[1];
-    data[5] = data_out.val_array[2];
-    data[6] = data_out.val_array[3];
-    data[7] = checksum(data);
     __delay_ms(4);
 
     for (i=0; i<8; i++){
-        U1TXREG = data[i];
+        U1TXREG = data_struct.data[i];
         __delay_us(200);
     }
     
@@ -157,3 +200,10 @@ void __attribute__((__interrupt__)) _U1RXInterrupt(void) {
     IEC0bits.U1RXIE = 1;        // enable rx interupt
 }
 
+void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
+    
+    unsigned int value;
+    
+    IFS0bits.IC1IF = 0;     // Reset respective interrupt flag
+    value = IC1BUF;      // Read and save off first capture entry
+}
