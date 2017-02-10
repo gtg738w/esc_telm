@@ -11,10 +11,17 @@
 #include <libpic30.h>
 #include <p33EV256GM102.h>
 
+struct cells{
+    unsigned long packet_id     :  4;
+    unsigned long cell_count    :  4;
+    unsigned long cell_1        : 12;
+    unsigned long cell_2        : 12;
+};
 
 union data_int{
     signed long val;
     unsigned char val_array[4];
+    struct cells cell_struct;
 };
 
 struct data_array{
@@ -29,8 +36,8 @@ unsigned char data_ret[8];
 
 void configUART(void){
     RPINR18bits.U1RXR = 0b0100110;  // set U1 rx to rp38
-    RPOR2bits.RP38R = 0b000000;     // 
-    U1BRG = 3;       // set baud rate
+    RPOR2bits.RP38R = 0b000000;     // clear tx pin
+    U1BRG = 3;                      // set baud rate
     U1MODEbits.STSEL = 0;           // 1 stop bit
     U1MODEbits.PDSEL = 0;           // no Parity, 8-data bits
     U1MODEbits.ABAUD = 0;           // auto-baud disabled
@@ -40,8 +47,8 @@ void configUART(void){
     U1STAbits.URXISEL = 0;          // interrupt after one RX character is received;
     U1MODEbits.UARTEN = 1;          // enable UART 1        
     U1STAbits.UTXEN = 1;            // enable transmitter
-    IEC0bits.U1RXIE = 1;
-    TRISBbits.TRISB6 = 1;
+    IEC0bits.U1RXIE = 1;            // enable rx interupts
+    TRISBbits.TRISB6 = 1;           // set rx pin to input
 }
 
 void configADC(void){
