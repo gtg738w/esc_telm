@@ -78,6 +78,8 @@ void configADC(void){
 }
 
 void configIC(void){
+    RPINR7bits.IC1R = 0b0101100;
+    
     IFS0bits.IC1IF = 0;         // Clear the IC1 interrupt status flag
     IEC0bits.IC1IE = 1;         // Enable IC1 interrupts
     IPC0bits.IC1IP = 1;         // Set module interrupt priority as 1
@@ -157,9 +159,9 @@ void sendData(){
     RPINR18bits.U1RXR = 0b0;
     TRISBbits.TRISB6 = 0;
     RPOR2bits.RP38R = 0b000001;
-    PORTBbits.RB15 = 1;
-    __delay_us(2);
-    PORTBbits.RB15 = 0;
+    //PORTBbits.RB15 = 1;
+    //__delay_us(2);
+    //PORTBbits.RB15 = 0;
     
     switch (field){
         case 0:         // cels1
@@ -213,4 +215,8 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     
     IFS0bits.IC1IF = 0;     // Reset respective interrupt flag
     value = IC1BUF;      // Read and save off first capture entry
+    
+    PORTBbits.RB15 = 1;
+    __delay_us(1);
+    PORTBbits.RB15 = 0;
 }
