@@ -30,6 +30,18 @@ struct data_array{
 
 unsigned int field = 0;
 unsigned char data_ret[8];
+unsigned int ic_val1=0, ic_val2=0;
+unsigned long esc_current = 0;
+unsigned long esc_voltage = 0;
+unsigned long esc_temp = 0;
+unsigned int esc_field = 0;
+
+unsigned char ic_sync = 0;
+unsigned char ic_field = 0;
+
+unsigned int ic_data[12];
+
+
 /*
  * 
  */
@@ -78,16 +90,35 @@ void configADC(void){
 }
 
 void configIC(void){
+    TRISBbits.TRISB12 = 1;
     RPINR7bits.IC1R = 0b0101100;
+    
+    T2CONbits.TCKPS = 0b01;
+    T2CONbits.TON = 1;
+    
     
     IFS0bits.IC1IF = 0;         // Clear the IC1 interrupt status flag
     IEC0bits.IC1IE = 1;         // Enable IC1 interrupts
     IPC0bits.IC1IP = 1;         // Set module interrupt priority as 1
     
-    IC1CON1bits.ICTSEL = 0b111; // use Fp for clock
+    IC1CON1bits.ICTSEL = 0b001; // use timer2 for clock
     IC1CON1bits.ICM = 0b001;    // capture every edge
     
-    IC1CON2bits.IC32 = 0;       // 16bit timer mode
+    IC1CON2 = 0;       // 16bit timer mode
+    
+//    IFS0bits.IC1IF = 0; // Clear the IC1 interrupt status flag
+//    IEC0bits.IC1IE = 1; // Enable IC1 interrupts
+//    IPC0bits.IC1IP = 1; // Set module interrupt priority as 1
+//    //IC1CON1bits.ICSDL = 0; // Input capture will continue to operate in CPU idle mode
+//    IC1CON1bits.ICTSEL = 0b111; // Peripheral (FP) is the clock source for the IC1 module
+//    IC1CON1bits.ICI = 0; // Interrupt on every capture event
+//    IC1CON1bits.ICBNE = 0; // Input capture is empty
+//    IC1CON1bits.ICM = 0b011; // Capture mode; every fourth rising edge (Prescaler Capture mode)
+//    IC1CON2bits.IC32 = 0; // Cascade module operation is disabled
+//    IC1CON2bits.ICTRIG = 0; // Input source used to synchronize the input capture timer of
+//    // another module (Synchronization mode)
+//    IC1CON2bits.TRIGSTAT = 0; // IC1TMR has not been triggered and is being held clear
+//    IC1CON2bits.SYNCSEL = 0; // No Sync or Trigger source for the IC1 module
 }
 
 
@@ -96,6 +127,7 @@ int main(void) {
     TRISBbits.TRISB15 = 0;
     configADC();
     configUART();
+    configIC();
 
     while(1) {
         __delay_ms(1);
@@ -134,8 +166,8 @@ struct data_array cels1(){
     struct data_array data_array_struct;
     unsigned long cell1, cell2;
     
-    cell1 = readADC(0);
-    cell2 = readADC(1);
+    cell1 = readADC(0)*2550L/4096L;
+    cell2 = readADC(1)*2550L/4096L;
     
     data_out.val = (cell2<<20) | (cell1<<8) | (2L<<4);
 
@@ -188,7 +220,7 @@ void sendData(){
     TRISBbits.TRISB6 = 1;
 }
 
-void __attribute__((__interrupt__)) _U1RXInterrupt(void) {
+void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void) {
 
     unsigned char rxChar;
     unsigned char rxChar2;
@@ -211,12 +243,68 @@ void __attribute__((__interrupt__)) _U1RXInterrupt(void) {
 
 void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     
-    unsigned int value;
+    unsigned long value,delay;
+    
+    //IEC0bits.IC1IE = 0;   // disable int
     
     IFS0bits.IC1IF = 0;     // Reset respective interrupt flag
-    value = IC1BUF;      // Read and save off first capture entry
+    ic_val2 = IC1BUF;       // Read and save off first capture entry
+    value = ic_val2 - ic_val1;
+    delay = (value*8L/3.685);
+    ic_val1 = ic_val2;
     
-    PORTBbits.RB15 = 1;
-    __delay_us(1);
-    PORTBbits.RB15 = 0;
+    if (delay < 20){
+        ic_sync = 1;
+    }
+    else if (ic_sync == 0){
+        ic_sync = 0;
+    }
+    else {
+        ic_sync = ic_sync + 1;
+    }
+    
+    switch (ic_sync){
+        case 2:
+            PORTBbits.RB15 = 1;
+            PORTBbits.RB15 = 0;
+            break;
+        case 3:
+            break;
+        case 4:
+            if (delay > 5500){
+                ic_sync = 2;
+                ic_field = 1;
+            }
+            else if (ic_field == 0){
+                ic_field = 0;
+            }
+            else {
+                ic_data[ic_field-1] = delay;
+                ic_field++;
+            }
+            break;
+    }
+    //RPINR18bits.U1RXR = 0b0;
+    //TRISBbits.TRISB6 = 0;
+    //RPOR2bits.RP38R = 0b000001;
+    
+    //U1TXREG = value % 0xFF;
+    //U1TXREG = delay>>8;
+    //U1TXREG = delay;
+    
+    //RPINR18bits.U1RXR = 0b0100110;
+    //RPOR2bits.RP38R = 0b000000;
+    //TRISBbits.TRISB6 = 1;
+    //value = IC1BUF;
+    //PORTBbits.RB15 = 1;
+    
+//    if (value <10000){
+//        PORTBbits.RB15 = 1;
+//        __delay_us(value);
+//        PORTBbits.RB15 = 0;
+//    }
+    
+    //TMR2 = 0;
+    //T2CONbits.TON =1;
+    IEC0bits.IC1IE = 1;
 }
