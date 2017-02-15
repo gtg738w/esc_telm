@@ -268,10 +268,12 @@ void sendData(){
         case 2:
             data_struct = cels3();
             break;
-            
+        case 3:
+            data_struct = calc_esc_voltage();
+            break;
     }
     sport_field++;
-    if (sport_field == 3){
+    if (sport_field == 4){
         sport_field = 0;
     }
 
