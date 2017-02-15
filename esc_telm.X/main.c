@@ -93,7 +93,7 @@ void configIC(void){
     TRISBbits.TRISB12 = 1;
     RPINR7bits.IC1R = 0b0101100;
     
-    T2CONbits.TCKPS = 0b01;
+    T2CONbits.TCKPS = 0b00;
     T2CONbits.TON = 1;
     
     
@@ -191,7 +191,7 @@ struct data_array cels2(){
     cell1 = readADC(2)*2550L/4096L;
     cell2 = readADC(3)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4 | 2L);
+    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4) | 2L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -213,7 +213,7 @@ struct data_array cels3(){
     cell1 = readADC(4)*2550L/4096L;
     cell2 = readADC(5)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4 | 4L);
+    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4) | 4L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -232,11 +232,30 @@ struct data_array calc_esc_voltage(){
     struct data_array data_array_struct;
     
     
-    data_out.val = (5L*readADC(0)*2550L)>>12;
+    data_out.val = ((ic_data[2]-500L)*20L*2550L)/1000L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
-    data_array_struct.data[2] = 0x03;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_temp(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+    
+    
+    data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x01;
+    data_array_struct.data[2] = 0x0c;
     data_array_struct.data[3] = data_out.val_array[0];
     data_array_struct.data[4] = data_out.val_array[1];
     data_array_struct.data[5] = data_out.val_array[2];
@@ -271,10 +290,13 @@ void sendData(){
         case 3:
             data_struct = calc_esc_voltage();
             break;
+        case 4:
+            data_struct = calc_esc_temp();
+            break;
     }
     sport_field++;
-    if (sport_field == 4){
-        sport_field = 0;
+    if (sport_field == 5){
+        sport_field = 3;
     }
 
     //data_out.val = (5L*readADC(0)*2550L)>>12;
@@ -324,48 +346,55 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     
         ic_val2 = IC1BUF;       // Read and save off first capture entry
         value = ic_val2 - ic_val1;
-        delay = (value*8L/3.685);
+        delay = (value*1L/3.685);
         ic_val1 = ic_val2;
 
-        if (delay < 20){
+//            RPINR18bits.U1RXR = 0b0;
+//            TRISBbits.TRISB6 = 0;
+//            RPOR2bits.RP38R = 0b000001;
+            
+            
+
+        
+        if (delay < 250L){
+            
             ic_sync = 1;
         }
         else if (ic_sync == 0){
             ic_sync = 0;
         }
         else {
+//            U1TXREG = delay>>8;
+//            U1TXREG = delay % 0xFF;
             ic_sync = ic_sync + 1;
         }
 
         switch (ic_sync){
             case 2:
-                PORTBbits.RB15 = 1;
-                PORTBbits.RB15 = 0;
+                
                 break;
             case 3:
                 break;
             case 4:
                 if (delay > 5500){
+                    PORTBbits.RB15 = 1;
+            __delay_us(1);
+            PORTBbits.RB15 = 0;
                     ic_sync = 2;
                     ic_field = 1;
+                    
                 }
                 else if (ic_field == 0){
                     ic_field = 0;
                 }
                 else {
-                    ic_data[ic_field-1] = delay;
+                    ic_data[ic_field] = delay;
                     ic_field++;
                 }
                 break;
         }
     }
-    //RPINR18bits.U1RXR = 0b0;
-    //TRISBbits.TRISB6 = 0;
-    //RPOR2bits.RP38R = 0b000001;
-    
-    //U1TXREG = value % 0xFF;
-    //U1TXREG = delay>>8;
-    //U1TXREG = delay;
+
     
     //RPINR18bits.U1RXR = 0b0100110;
     //RPOR2bits.RP38R = 0b000000;
