@@ -28,7 +28,7 @@ struct data_array{
     unsigned char data[8];
 };
 
-unsigned int field = 0;
+unsigned int sport_field = 0;
 unsigned char data_ret[8];
 unsigned int ic_val1=0, ic_val2=0;
 unsigned long esc_current = 0;
@@ -169,7 +169,70 @@ struct data_array cels1(){
     cell1 = readADC(0)*2550L/4096L;
     cell2 = readADC(1)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (2L<<4);
+    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x00;
+    data_array_struct.data[2] = 0x03;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array cels2(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+    unsigned long cell1, cell2;
+    
+    cell1 = readADC(2)*2550L/4096L;
+    cell2 = readADC(3)*2550L/4096L;
+    
+    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4 | 2L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x00;
+    data_array_struct.data[2] = 0x03;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array cels3(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+    unsigned long cell1, cell2;
+    
+    cell1 = readADC(4)*2550L/4096L;
+    cell2 = readADC(5)*2550L/4096L;
+    
+    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4 | 4L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x00;
+    data_array_struct.data[2] = 0x03;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_voltage(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+    
+    
+    data_out.val = (5L*readADC(0)*2550L)>>12;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -195,15 +258,21 @@ void sendData(){
     //__delay_us(2);
     //PORTBbits.RB15 = 0;
     
-    switch (field){
+    switch (sport_field){
         case 0:         // cels1
             data_struct = cels1();
             break;
         case 1:
+            data_struct = cels2();
             break;
         case 2:
+            data_struct = cels3();
             break;
             
+    }
+    sport_field++;
+    if (sport_field == 3){
+        sport_field = 0;
     }
 
     //data_out.val = (5L*readADC(0)*2550L)>>12;
@@ -248,41 +317,45 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     //IEC0bits.IC1IE = 0;   // disable int
     
     IFS0bits.IC1IF = 0;     // Reset respective interrupt flag
-    ic_val2 = IC1BUF;       // Read and save off first capture entry
-    value = ic_val2 - ic_val1;
-    delay = (value*8L/3.685);
-    ic_val1 = ic_val2;
     
-    if (delay < 20){
-        ic_sync = 1;
-    }
-    else if (ic_sync == 0){
-        ic_sync = 0;
-    }
-    else {
-        ic_sync = ic_sync + 1;
-    }
+    while (IC1CON1bits.ICBNE){
     
-    switch (ic_sync){
-        case 2:
-            PORTBbits.RB15 = 1;
-            PORTBbits.RB15 = 0;
-            break;
-        case 3:
-            break;
-        case 4:
-            if (delay > 5500){
-                ic_sync = 2;
-                ic_field = 1;
-            }
-            else if (ic_field == 0){
-                ic_field = 0;
-            }
-            else {
-                ic_data[ic_field-1] = delay;
-                ic_field++;
-            }
-            break;
+        ic_val2 = IC1BUF;       // Read and save off first capture entry
+        value = ic_val2 - ic_val1;
+        delay = (value*8L/3.685);
+        ic_val1 = ic_val2;
+
+        if (delay < 20){
+            ic_sync = 1;
+        }
+        else if (ic_sync == 0){
+            ic_sync = 0;
+        }
+        else {
+            ic_sync = ic_sync + 1;
+        }
+
+        switch (ic_sync){
+            case 2:
+                PORTBbits.RB15 = 1;
+                PORTBbits.RB15 = 0;
+                break;
+            case 3:
+                break;
+            case 4:
+                if (delay > 5500){
+                    ic_sync = 2;
+                    ic_field = 1;
+                }
+                else if (ic_field == 0){
+                    ic_field = 0;
+                }
+                else {
+                    ic_data[ic_field-1] = delay;
+                    ic_field++;
+                }
+                break;
+        }
     }
     //RPINR18bits.U1RXR = 0b0;
     //TRISBbits.TRISB6 = 0;
