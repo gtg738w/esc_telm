@@ -169,7 +169,7 @@ struct data_array cels1(){
     cell1 = readADC(0)*2550L/4096L;
     cell2 = readADC(1)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4);
+    data_out.val = (cell2<<20) | (cell1<<8) | (2L<<4);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -191,7 +191,7 @@ struct data_array cels2(){
     cell1 = readADC(2)*2550L/4096L;
     cell2 = readADC(3)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4) | 2L;
+    data_out.val = (cell2<<20) | (cell1<<8) | (4L<<4) | 2L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -213,7 +213,7 @@ struct data_array cels3(){
     cell1 = readADC(4)*2550L/4096L;
     cell2 = readADC(5)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (6L<<4) | 4L;
+    data_out.val = (cell2<<20) | (cell1<<8) | (4L<<4) | 0L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -230,8 +230,7 @@ struct data_array cels3(){
 struct data_array calc_esc_voltage(){
     union data_int data_out;
     struct data_array data_array_struct;
-    
-    
+
     data_out.val = ((ic_data[2]-500L)*20L*2550L)/1000L;
 
     data_array_struct.data[0] = 0x10;
@@ -246,15 +245,140 @@ struct data_array calc_esc_voltage(){
     return data_array_struct;
 }
 
-struct data_array calc_esc_temp(){
+struct data_array calc_esc_vrip(){
     union data_int data_out;
     struct data_array data_array_struct;
-    
-    
-    data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+
+    data_out.val = ((ic_data[3]-500L)*4L*2550L)/1000L;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x01;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_I(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[4]-500L)*50L*2550L)/1000L;
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x02;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_throttle(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[5]-500L)*1L*2550L)/1000L;
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x03;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_power(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[6]-500L)*2550L)/(1000L*4L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x04;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_rpm(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[7]-500L)*20416L)/(1000L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x05;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_becV(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[8]-500L)*4L*2550L)/(1000L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x06;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_becI(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[9]-500L)*4L*2550L)/(1000L);
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x07;
+    data_array_struct.data[2] = 0x0c;
+    data_array_struct.data[3] = data_out.val_array[0];
+    data_array_struct.data[4] = data_out.val_array[1];
+    data_array_struct.data[5] = data_out.val_array[2];
+    data_array_struct.data[6] = data_out.val_array[3];
+    data_array_struct.data[7] = checksum(data_array_struct.data);
+    
+    return data_array_struct;
+}
+
+struct data_array calc_esc_temp(){
+    union data_int data_out;
+    struct data_array data_array_struct;
+
+    data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+
+    data_array_struct.data[0] = 0x10;
+    data_array_struct.data[1] = 0x08;
     data_array_struct.data[2] = 0x0c;
     data_array_struct.data[3] = data_out.val_array[0];
     data_array_struct.data[4] = data_out.val_array[1];
@@ -285,18 +409,39 @@ void sendData(){
             data_struct = cels2();
             break;
         case 2:
-            data_struct = cels3();
+            data_struct = cels1();
             break;
         case 3:
             data_struct = calc_esc_voltage();
             break;
         case 4:
+            data_struct = calc_esc_vrip();
+            break;
+        case 5:
+            data_struct = calc_esc_I();
+            break;
+        case 6:
+            data_struct = calc_esc_throttle();
+            break;
+        case 7:
+            data_struct = calc_esc_power();
+            break;
+        case 8:
+            data_struct = calc_esc_rpm();
+            break;
+        case 9:
+            data_struct = calc_esc_becV();
+            break;
+        case 10:
+            data_struct = calc_esc_becI();
+            break;
+        case 11:
             data_struct = calc_esc_temp();
             break;
     }
     sport_field++;
-    if (sport_field == 5){
-        sport_field = 3;
+    if (sport_field == 12){
+        sport_field = 0;
     }
 
     //data_out.val = (5L*readADC(0)*2550L)>>12;
