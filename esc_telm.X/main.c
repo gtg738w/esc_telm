@@ -21,7 +21,7 @@ struct cells{
 union data_int{
     signed long val;
     unsigned char val_array[4];
-    struct cells cell_struct;
+
 };
 
 struct data_array{
@@ -36,10 +36,15 @@ unsigned long esc_voltage = 0;
 unsigned long esc_temp = 0;
 unsigned int esc_field = 0;
 
+unsigned long esc_offset = 0;
+unsigned long esc_scale = 1;
+
 unsigned char ic_sync = 0;
 unsigned char ic_field = 0;
 
 unsigned int ic_data[12];
+
+unsigned char cell_count = 2;
 
 
 /*
@@ -121,22 +126,6 @@ void configIC(void){
 //    IC1CON2bits.SYNCSEL = 0; // No Sync or Trigger source for the IC1 module
 }
 
-
-
-int main(void) {
-    TRISBbits.TRISB15 = 0;
-    configADC();
-    configUART();
-    configIC();
-
-    while(1) {
-        __delay_ms(1);
-    }
-    
-    return (0);
-    
-}
-
 unsigned int readADC(char chan){
     unsigned int data = 0;
     
@@ -148,6 +137,22 @@ unsigned int readADC(char chan){
     data = ADC1BUF0;
     return data;
 }
+
+void get_cell_count(){
+    unsigned char i;
+    cell_count = 0;
+    if (readADC(0) > 1000){
+        cell_count = 1;
+        if (readADC(1) > 1000){
+            cell_count = 2;
+        }
+    }
+
+}
+
+
+
+
 
 unsigned char checksum(unsigned char data_in[8]){
     unsigned int i;
@@ -161,15 +166,36 @@ unsigned char checksum(unsigned char data_in[8]){
     return out;   
 }
 
+void calc_esc_cal(){
+    
+    unsigned long low;
+    unsigned long high;
+    
+    high = ic_data[1];
+    
+    if (ic_data[11] < ic_data[12]){
+        low = ic_data[11];
+    }
+    else {
+        low = ic_data[12];
+    }
+    
+    esc_scale = (high - low) * 2L;
+    esc_offset = 500L-((low*500L)/(high-low));
+    
+    
+}
+
+
 struct data_array cels1(){
     union data_int data_out;
     struct data_array data_array_struct;
     unsigned long cell1, cell2;
     
-    cell1 = readADC(0)*2550L/4096L;
-    cell2 = readADC(1)*2550L/4096L;
+    cell1 = (unsigned long) readADC(0)*5L*500L/4096L;
+    cell2 = (unsigned long) readADC(1)*5L*500L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (2L<<4);
+    data_out.val = ((cell2<<20) | (cell1<<8) | (cell_count<<4) ) + 0;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -191,7 +217,7 @@ struct data_array cels2(){
     cell1 = readADC(2)*2550L/4096L;
     cell2 = readADC(3)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (4L<<4) | 2L;
+    data_out.val = ((cell2<<20) | (cell1<<8) | (3L<<4)) + 2;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -213,7 +239,7 @@ struct data_array cels3(){
     cell1 = readADC(4)*2550L/4096L;
     cell2 = readADC(5)*2550L/4096L;
     
-    data_out.val = (cell2<<20) | (cell1<<8) | (4L<<4) | 0L;
+    data_out.val = ((cell2<<20) | (cell1<<8) | (3L<<4)) + 4;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -266,8 +292,8 @@ struct data_array calc_esc_vrip(){
 struct data_array calc_esc_I(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[4]-500L)*50L*2550L)/1000L;
+    calc_esc_cal();
+    data_out.val = ((ic_data[4]-500L+esc_offset)*50L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x02;
@@ -285,7 +311,7 @@ struct data_array calc_esc_throttle(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[5]-500L)*1L*2550L)/1000L;
+    data_out.val = ((ic_data[5]-500L+esc_offset)*1L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x03;
@@ -303,7 +329,7 @@ struct data_array calc_esc_power(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[6]-500L)*2550L)/(1000L*4L);
+    data_out.val = ((ic_data[6]-500L+esc_offset)*2550L)/(esc_scale*4L);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x04;
@@ -321,7 +347,7 @@ struct data_array calc_esc_rpm(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[7]-500L)*20416L)/(1000L);
+    data_out.val = ((ic_data[7]-500L+esc_offset)*20416L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x05;
@@ -339,7 +365,7 @@ struct data_array calc_esc_becV(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[8]-500L)*4L*2550L)/(1000L);
+    data_out.val = ((ic_data[8]-500L+esc_offset)*4L*2550L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x06;
@@ -357,7 +383,7 @@ struct data_array calc_esc_becI(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[9]-500L)*4L*2550L)/(1000L);
+    data_out.val = ((ic_data[9]-500L+esc_offset)*4L*2550L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x07;
@@ -375,7 +401,15 @@ struct data_array calc_esc_temp(){
     union data_int data_out;
     struct data_array data_array_struct;
 
-    data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+    if (ic_data[10] < ic_data[11]){
+        data_out.val = 0;
+    }
+    else {
+        data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+    }
+    
+    
+    
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x08;
@@ -406,7 +440,7 @@ void sendData(){
             data_struct = cels1();
             break;
         case 1:
-            data_struct = cels2();
+            data_struct = cels1();
             break;
         case 2:
             data_struct = cels1();
@@ -443,10 +477,11 @@ void sendData(){
     if (sport_field == 12){
         sport_field = 0;
     }
+    //sport_field = 0;
 
     //data_out.val = (5L*readADC(0)*2550L)>>12;
 
-    __delay_ms(4);
+    __delay_ms(2);
 
     for (i=0; i<8; i++){
         U1TXREG = data_struct.data[i];
@@ -522,9 +557,9 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
                 break;
             case 4:
                 if (delay > 5500){
-                    PORTBbits.RB15 = 1;
-            __delay_us(1);
-            PORTBbits.RB15 = 0;
+                    //PORTBbits.RB15 = 1;
+                    //__delay_us(1);
+                    //PORTBbits.RB15 = 0;
                     ic_sync = 2;
                     ic_field = 1;
                     
@@ -556,4 +591,19 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     //TMR2 = 0;
     //T2CONbits.TON =1;
     IEC0bits.IC1IE = 1;
+}
+int main(void) {
+    TRISBbits.TRISB15 = 0;
+    configADC();
+    configUART();
+    configIC();
+    get_cell_count();
+    while(1) {
+        __delay_ms(100);
+        get_cell_count();
+        
+    }
+    
+    return (0);
+    
 }
