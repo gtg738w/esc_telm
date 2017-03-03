@@ -5,17 +5,17 @@
  * Created on January 22, 2017, 9:39 PM
  */
 
-#define FOSC (7370000ULL)
+#define FOSC (7370000ULL*8LL)
 #define FCY  (FOSC/2)
 #include "xc.h"
 #include <libpic30.h>
 #include <p33EV256GM102.h>
 #include <math.h>
 
-//// Select Internal FRC at POR
-//_FOSCSEL(FNOSC_FRC & IESO_OFF);
-//// Enable Clock Switching and Configure Primary Oscillator in XT mode
-//_FOSC(FCKSM_CSECMD & OSCIOFNC_OFF & POSCMD_NONE);
+// Select Internal FRC at POR
+_FOSCSEL(FNOSC_FRC & IESO_OFF);
+// Enable Clock Switching and Configure Primary Oscillator in XT mode
+_FOSC(FCKSM_CSECMD & OSCIOFNC_OFF & POSCMD_NONE);
 
 struct cells{
     unsigned long packet_id     :  4;
@@ -60,18 +60,18 @@ unsigned char cell_count = 2;
 void configPWM(void){
 
     PTPER = 590;
-    MDC = 0x80;
-    PDC2 = PTPER >> 2;
-    IOCON1bits.PENH = 1;
-    TRISBbits.TRISB13 = 0;
-    PTCONbits.PTEN = 1;
+    //MDC = 0x80;
+    PDC3 = PTPER >> 2;
+    //IOCON1bits.PENH = 1;
+    //TRISBbits.TRISB13 = 0;
+    //PTCONbits.PTEN = 1;
     
 }
 
 void configUART(void){
     RPINR18bits.U1RXR = 0b0100110;  // set U1 rx to rp38
     RPOR2bits.RP38R = 0b000000;     // clear tx pin
-    U1BRG = 3;                      // set baud rate
+    U1BRG = 31;                      // set baud rate
     U1MODEbits.STSEL = 0;           // 1 stop bit
     U1MODEbits.PDSEL = 0;           // no Parity, 8-data bits
     U1MODEbits.ABAUD = 0;           // auto-baud disabled
@@ -115,7 +115,7 @@ void configIC(void){
     TRISBbits.TRISB12 = 1;
     RPINR7bits.IC1R = 0b0101100;
     
-    T2CONbits.TCKPS = 0b00;
+    T2CONbits.TCKPS = 0b01;
     T2CONbits.TON = 1;
     
     
@@ -678,20 +678,20 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     IEC0bits.IC1IE = 1;
 }
 int main(void) {
-//    PLLFBD=30; // M=65
-//CLKDIVbits.PLLPOST=0; // N2=2
-//CLKDIVbits.PLLPRE=0; // N1=3
-//    __builtin_write_OSCCONH(0x01);
-//    __builtin_write_OSCCONL(OSCCON | 0x01);
-//    // Wait for Clock switch to occur
-//    while (OSCCONbits.COSC!= 0b001);
-//    // Wait for PLL to lock
-//    while (OSCCONbits.LOCK!= 1);
+    PLLFBD=30; // M=65
+CLKDIVbits.PLLPOST=0; // N2=2
+CLKDIVbits.PLLPRE=0; // N1=3
+    __builtin_write_OSCCONH(0x01);
+    __builtin_write_OSCCONL(OSCCON | 0x01);
+    // Wait for Clock switch to occur
+    while (OSCCONbits.COSC!= 0b001);
+    // Wait for PLL to lock
+    while (OSCCONbits.LOCK!= 1);
     TRISBbits.TRISB15 = 0;
     configADC();
     configUART();
     configIC();
-    //configPWM();
+    configPWM();
     get_cell_count();
     while(1) {
         __delay_ms(100);
