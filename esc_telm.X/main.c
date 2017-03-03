@@ -10,6 +10,12 @@
 #include "xc.h"
 #include <libpic30.h>
 #include <p33EV256GM102.h>
+#include <math.h>
+
+//// Select Internal FRC at POR
+//_FOSCSEL(FNOSC_FRC & IESO_OFF);
+//// Enable Clock Switching and Configure Primary Oscillator in XT mode
+//_FOSC(FCKSM_CSECMD & OSCIOFNC_OFF & POSCMD_NONE);
 
 struct cells{
     unsigned long packet_id     :  4;
@@ -36,8 +42,8 @@ unsigned long esc_voltage = 0;
 unsigned long esc_temp = 0;
 unsigned int esc_field = 0;
 
-unsigned long esc_offset = 0;
-unsigned long esc_scale = 1;
+long esc_offset = 0;
+long esc_scale = 1;
 
 unsigned char ic_sync = 0;
 unsigned char ic_field = 0;
@@ -50,6 +56,17 @@ unsigned char cell_count = 2;
 /*
  * 
  */
+
+void configPWM(void){
+
+    PTPER = 590;
+    MDC = 0x80;
+    PDC2 = PTPER >> 2;
+    IOCON1bits.PENH = 1;
+    TRISBbits.TRISB13 = 0;
+    PTCONbits.PTEN = 1;
+    
+}
 
 void configUART(void){
     RPINR18bits.U1RXR = 0b0100110;  // set U1 rx to rp38
@@ -126,7 +143,7 @@ void configIC(void){
 //    IC1CON2bits.SYNCSEL = 0; // No Sync or Trigger source for the IC1 module
 }
 
-unsigned int readADC(char chan){
+unsigned int readADC(unsigned int chan){
     unsigned int data = 0;
     
     AD1CHS0bits.CH0SA = chan;
@@ -139,15 +156,25 @@ unsigned int readADC(char chan){
 }
 
 void get_cell_count(){
-    unsigned char i;
     cell_count = 0;
     if (readADC(0) > 1000){
         cell_count = 1;
-        if (readADC(1) > 1000){
+        if (readADC(2) > 1000){
             cell_count = 2;
+            if (readADC(3) > 1000){
+                cell_count = 3;
+                if (readADC(4) > 1000){
+                    cell_count = 4;
+                    if (readADC(5) > 1000){
+                        cell_count = 5;
+                        if (readADC(6) > 1000){
+                            cell_count = 6;
+                        }
+                    }
+                }
+            }
         }
     }
-
 }
 
 
@@ -173,15 +200,16 @@ void calc_esc_cal(){
     
     high = ic_data[1];
     
-    if (ic_data[11] < ic_data[12]){
-        low = ic_data[11];
+    if (ic_data[10] < ic_data[11]){
+        low = ic_data[10];
     }
     else {
-        low = ic_data[12];
+        low = ic_data[11];
     }
+    esc_offset = high-2*low;
+    esc_scale = (low + esc_offset) * 2L;
+    //esc_scale = low;
     
-    esc_scale = (high - low) * 2L;
-    esc_offset = 500L-((low*500L)/(high-low));
     
     
 }
@@ -193,10 +221,12 @@ struct data_array cels1(){
     unsigned long cell1, cell2;
     
     cell1 = (unsigned long) readADC(0)*5L*500L/4096L;
-    cell2 = (unsigned long) readADC(1)*5L*500L/4096L;
+    cell2 = (unsigned long) readADC(2)*5L*500L/4096L;
     
     data_out.val = ((cell2<<20) | (cell1<<8) | (cell_count<<4) ) + 0;
 
+    //data_out.val = cell1;
+    
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
     data_array_struct.data[2] = 0x03;
@@ -214,8 +244,8 @@ struct data_array cels2(){
     struct data_array data_array_struct;
     unsigned long cell1, cell2;
     
-    cell1 = readADC(2)*2550L/4096L;
-    cell2 = readADC(3)*2550L/4096L;
+    cell1 = readADC(3)*2550L/4096L;
+    cell2 = readADC(4)*2550L/4096L;
     
     data_out.val = ((cell2<<20) | (cell1<<8) | (3L<<4)) + 2;
 
@@ -236,8 +266,8 @@ struct data_array cels3(){
     struct data_array data_array_struct;
     unsigned long cell1, cell2;
     
-    cell1 = readADC(4)*2550L/4096L;
-    cell2 = readADC(5)*2550L/4096L;
+    cell1 = readADC(5)*2550L/4096L;
+    cell2 = readADC(6)*2550L/4096L;
     
     data_out.val = ((cell2<<20) | (cell1<<8) | (3L<<4)) + 4;
 
@@ -256,8 +286,13 @@ struct data_array cels3(){
 struct data_array calc_esc_voltage(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[2]-500L)*20L*2550L)/1000L;
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[2]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*20L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -274,8 +309,13 @@ struct data_array calc_esc_voltage(){
 struct data_array calc_esc_vrip(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[3]-500L)*4L*2550L)/1000L;
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[3]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*4L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x01;
@@ -292,8 +332,13 @@ struct data_array calc_esc_vrip(){
 struct data_array calc_esc_I(){
     union data_int data_out;
     struct data_array data_array_struct;
+    signed long pulse;
     calc_esc_cal();
-    data_out.val = ((ic_data[4]-500L+esc_offset)*50L*2550L)/esc_scale;
+    pulse = ic_data[4]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*50L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x02;
@@ -310,8 +355,13 @@ struct data_array calc_esc_I(){
 struct data_array calc_esc_throttle(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[5]-500L+esc_offset)*1L*2550L)/esc_scale;
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[5]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*1L*2550L)/esc_scale;
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x03;
@@ -328,8 +378,13 @@ struct data_array calc_esc_throttle(){
 struct data_array calc_esc_power(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[6]-500L+esc_offset)*2550L)/(esc_scale*4L);
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[6]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*2550L)/(esc_scale*4L);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x04;
@@ -346,8 +401,13 @@ struct data_array calc_esc_power(){
 struct data_array calc_esc_rpm(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[7]-500L+esc_offset)*20416L)/(esc_scale);
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[7]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*20416L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x05;
@@ -364,8 +424,13 @@ struct data_array calc_esc_rpm(){
 struct data_array calc_esc_becV(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[8]-500L+esc_offset)*4L*2550L)/(esc_scale);
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[8]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*4L*2550L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x06;
@@ -382,8 +447,13 @@ struct data_array calc_esc_becV(){
 struct data_array calc_esc_becI(){
     union data_int data_out;
     struct data_array data_array_struct;
-
-    data_out.val = ((ic_data[9]-500L+esc_offset)*4L*2550L)/(esc_scale);
+    signed long pulse;
+    calc_esc_cal();
+    pulse = ic_data[9]-500L + esc_offset;
+    if (pulse < 0){
+        pulse = 0;
+    }
+    data_out.val = (pulse*4L*2550L)/(esc_scale);
 
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x07;
@@ -400,15 +470,30 @@ struct data_array calc_esc_becI(){
 struct data_array calc_esc_temp(){
     union data_int data_out;
     struct data_array data_array_struct;
+    long pulse;
+    float pulseFp;
+    float R0 = 10000, R2 = 10200, B = 3455;
 
     if (ic_data[10] < ic_data[11]){
-        data_out.val = 0;
+        pulse = ic_data[11]-500L + esc_offset;
+        if (pulse < 0){
+        pulse = 0;
+        }
+        pulseFp = (float) pulse / ((float) esc_scale);
+        pulseFp = pulseFp * 63.8125;
+        pulseFp = 1.0 / (log(pulseFp*R2 / (255.0-pulseFp) / R0) / B + 1/298.0);
+        pulseFp = pulseFp - 273.0;
+        data_out.val = (long) (pulseFp*2550.0);
     }
     else {
-        data_out.val = ((ic_data[10]-500L)*30L*2550L)/1000L;
+        pulse = ic_data[10]-500L + esc_offset;
+        if (pulse < 0){
+        pulse = 0;
+        }
+        data_out.val = (pulse*30L*2550L)/esc_scale;
     }
     
-    
+
     
 
     data_array_struct.data[0] = 0x10;
@@ -593,15 +678,29 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     IEC0bits.IC1IE = 1;
 }
 int main(void) {
+//    PLLFBD=30; // M=65
+//CLKDIVbits.PLLPOST=0; // N2=2
+//CLKDIVbits.PLLPRE=0; // N1=3
+//    __builtin_write_OSCCONH(0x01);
+//    __builtin_write_OSCCONL(OSCCON | 0x01);
+//    // Wait for Clock switch to occur
+//    while (OSCCONbits.COSC!= 0b001);
+//    // Wait for PLL to lock
+//    while (OSCCONbits.LOCK!= 1);
     TRISBbits.TRISB15 = 0;
     configADC();
     configUART();
     configIC();
+    //configPWM();
     get_cell_count();
     while(1) {
         __delay_ms(100);
         get_cell_count();
-        
+//            RPINR18bits.U1RXR = 0b0;
+//    TRISBbits.TRISB6 = 0;
+//    RPOR2bits.RP38R = 0b000001;
+//        U1TXREG = 255;
+//        
     }
     
     return (0);
