@@ -12,6 +12,8 @@
 #include <p33EV256GM102.h>
 #include <math.h>
 
+_FDEVOPT(PWMLOCK_OFF);
+
 // Select Internal FRC at POR
 _FOSCSEL(FNOSC_FRC & IESO_OFF);
 // Enable Clock Switching and Configure Primary Oscillator in XT mode
@@ -58,14 +60,10 @@ unsigned char cell_count = 2;
  */
 
 void configPWM(void){
-
     PTPER = 590;
-    //MDC = 0x80;
-    PDC3 = PTPER >> 2;
-    //IOCON1bits.PENH = 1;
-    //TRISBbits.TRISB13 = 0;
-    //PTCONbits.PTEN = 1;
-    
+    PDC2 = 250;
+    FCLCON2 = 0b11;
+    PTCONbits.PTEN = 1;
 }
 
 void configUART(void){
@@ -112,12 +110,11 @@ void configADC(void){
 }
 
 void configIC(void){
-    TRISBbits.TRISB12 = 1;
-    RPINR7bits.IC1R = 0b0101100;
+    TRISBbits.TRISB4 = 1;
+    RPINR7bits.IC1R = 0b0100100;
     
     T2CONbits.TCKPS = 0b01;
     T2CONbits.TON = 1;
-    
     
     IFS0bits.IC1IF = 0;         // Clear the IC1 interrupt status flag
     IEC0bits.IC1IE = 1;         // Enable IC1 interrupts
@@ -127,20 +124,6 @@ void configIC(void){
     IC1CON1bits.ICM = 0b001;    // capture every edge
     
     IC1CON2 = 0;       // 16bit timer mode
-    
-//    IFS0bits.IC1IF = 0; // Clear the IC1 interrupt status flag
-//    IEC0bits.IC1IE = 1; // Enable IC1 interrupts
-//    IPC0bits.IC1IP = 1; // Set module interrupt priority as 1
-//    //IC1CON1bits.ICSDL = 0; // Input capture will continue to operate in CPU idle mode
-//    IC1CON1bits.ICTSEL = 0b111; // Peripheral (FP) is the clock source for the IC1 module
-//    IC1CON1bits.ICI = 0; // Interrupt on every capture event
-//    IC1CON1bits.ICBNE = 0; // Input capture is empty
-//    IC1CON1bits.ICM = 0b011; // Capture mode; every fourth rising edge (Prescaler Capture mode)
-//    IC1CON2bits.IC32 = 0; // Cascade module operation is disabled
-//    IC1CON2bits.ICTRIG = 0; // Input source used to synchronize the input capture timer of
-//    // another module (Synchronization mode)
-//    IC1CON2bits.TRIGSTAT = 0; // IC1TMR has not been triggered and is being held clear
-//    IC1CON2bits.SYNCSEL = 0; // No Sync or Trigger source for the IC1 module
 }
 
 unsigned int readADC(unsigned int chan){
@@ -177,10 +160,6 @@ void get_cell_count(){
     }
 }
 
-
-
-
-
 unsigned char checksum(unsigned char data_in[8]){
     unsigned int i;
     unsigned int sum=0;
@@ -208,10 +187,7 @@ void calc_esc_cal(){
     }
     esc_offset = high-2*low;
     esc_scale = (low + esc_offset) * 2L;
-    //esc_scale = low;
-    
-    
-    
+
 }
 
 
@@ -224,8 +200,6 @@ struct data_array cels1(){
     cell2 = (unsigned long) readADC(2)*5L*500L/4096L;
     
     data_out.val = ((cell2<<20) | (cell1<<8) | (cell_count<<4) ) + 0;
-
-    //data_out.val = cell1;
     
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x00;
@@ -493,9 +467,6 @@ struct data_array calc_esc_temp(){
         data_out.val = (pulse*30L*2550L)/esc_scale;
     }
     
-
-    
-
     data_array_struct.data[0] = 0x10;
     data_array_struct.data[1] = 0x08;
     data_array_struct.data[2] = 0x0c;
@@ -511,14 +482,10 @@ struct data_array calc_esc_temp(){
 void sendData(){
     unsigned int i;
     struct data_array data_struct;
-    
-    
+
     RPINR18bits.U1RXR = 0b0;
     TRISBbits.TRISB6 = 0;
     RPOR2bits.RP38R = 0b000001;
-    //PORTBbits.RB15 = 1;
-    //__delay_us(2);
-    //PORTBbits.RB15 = 0;
     
     switch (sport_field){
         case 0:         // cels1
@@ -562,10 +529,7 @@ void sendData(){
     if (sport_field == 12){
         sport_field = 0;
     }
-    //sport_field = 0;
-
-    //data_out.val = (5L*readADC(0)*2550L)>>12;
-
+    
     __delay_ms(2);
 
     for (i=0; i<8; i++){
@@ -603,8 +567,6 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
     
     unsigned long value,delay;
     
-    //IEC0bits.IC1IE = 0;   // disable int
-    
     IFS0bits.IC1IF = 0;     // Reset respective interrupt flag
     
     while (IC1CON1bits.ICBNE){
@@ -614,13 +576,6 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
         delay = (value*1L/3.685);
         ic_val1 = ic_val2;
 
-//            RPINR18bits.U1RXR = 0b0;
-//            TRISBbits.TRISB6 = 0;
-//            RPOR2bits.RP38R = 0b000001;
-            
-            
-
-        
         if (delay < 250L){
             
             ic_sync = 1;
@@ -629,8 +584,6 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
             ic_sync = 0;
         }
         else {
-//            U1TXREG = delay>>8;
-//            U1TXREG = delay % 0xFF;
             ic_sync = ic_sync + 1;
         }
 
@@ -642,12 +595,8 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
                 break;
             case 4:
                 if (delay > 5500){
-                    //PORTBbits.RB15 = 1;
-                    //__delay_us(1);
-                    //PORTBbits.RB15 = 0;
                     ic_sync = 2;
                     ic_field = 1;
-                    
                 }
                 else if (ic_field == 0){
                     ic_field = 0;
@@ -660,49 +609,31 @@ void __attribute__ ((__interrupt__, no_auto_psv)) _IC1Interrupt(void){
         }
     }
 
-    
-    //RPINR18bits.U1RXR = 0b0100110;
-    //RPOR2bits.RP38R = 0b000000;
-    //TRISBbits.TRISB6 = 1;
-    //value = IC1BUF;
-    //PORTBbits.RB15 = 1;
-    
-//    if (value <10000){
-//        PORTBbits.RB15 = 1;
-//        __delay_us(value);
-//        PORTBbits.RB15 = 0;
-//    }
-    
-    //TMR2 = 0;
-    //T2CONbits.TON =1;
     IEC0bits.IC1IE = 1;
 }
+
+
 int main(void) {
+ 
     PLLFBD=30; // M=65
-CLKDIVbits.PLLPOST=0; // N2=2
-CLKDIVbits.PLLPRE=0; // N1=3
+    CLKDIVbits.PLLPOST=0; // N2=2
+    CLKDIVbits.PLLPRE=0; // N1=3
     __builtin_write_OSCCONH(0x01);
     __builtin_write_OSCCONL(OSCCON | 0x01);
     // Wait for Clock switch to occur
     while (OSCCONbits.COSC!= 0b001);
     // Wait for PLL to lock
     while (OSCCONbits.LOCK!= 1);
-    TRISBbits.TRISB15 = 0;
+
     configADC();
     configUART();
     configIC();
     configPWM();
     get_cell_count();
+
     while(1) {
         __delay_ms(100);
-        get_cell_count();
-//            RPINR18bits.U1RXR = 0b0;
-//    TRISBbits.TRISB6 = 0;
-//    RPOR2bits.RP38R = 0b000001;
-//        U1TXREG = 255;
-//        
+        get_cell_count();        
     }
-    
     return (0);
-    
 }
